@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Aura mini</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0f; --text:#e8e8ef; --muted:#84849c; --line:rgba(255,255,255,.08);
+    --card:rgba(255,255,255,.04); --accent:#a78bfa; --accent-dim:rgba(167,139,250,.18);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;opacity:0;pointer-events:none;transition:opacity .3s}
+  .overlay.show{opacity:1;pointer-events:auto}
+  
+  .history-panel{position:fixed;top:12px;left:12px;bottom:12px;width:300px;max-width:calc(100vw - 24px);z-index:50;background:var(--bg);
+    border:1px solid var(--line);border-radius:18px;transform:translateX(-110%);
+    transition:transform .35s cubic-bezier(.32,.72,.25,1);display:flex;flex-direction:column;padding:20px 14px}
+  .history-panel.open{transform:none}
+  .hp-head{display:flex;justify-content:space-between;align-items:center;padding:0 8px 16px}
+  .hp-head h2{font-size:14px;font-weight:700}
+  .close-btn{background:none;border:1px solid var(--line);color:var(--muted);font-size:14px;cursor:pointer;
+    padding:5px 10px;border-radius:99px;transition:.15s}
+  .close-btn:hover{color:var(--text);border-color:var(--accent)}
+  .hp-list{flex:1;overflow-y:auto}
+  .hp-list::-webkit-scrollbar{width:4px}.hp-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:2px}
+  .hp-group{font-size:10px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);padding:12px 10px 8px}
+  .hp-item{padding:9px 12px;border-radius:10px;cursor:pointer;font-size:13.5px;color:var(--muted);
+    transition:.15s;display:flex;align-items:center;gap:8px}
+  .hp-item:hover,.hp-item:focus-visible{background:var(--card);color:var(--text);outline:none}
+  .hp-item.active{color:var(--accent);background:var(--accent-dim)}
+  .hp-del{margin-left:auto;opacity:0.6;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 8px}
+  .hp-item:hover .hp-del,.hp-del:focus-visible{opacity:1}
+  .hp-del:hover{color:var(--accent)}
+  .hp-empty{padding:20px 12px;font-size:13px;color:var(--muted);text-align:center}
+  
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    height: 100%;
+    position: relative;
+  }
+
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;flex-shrink:0;border-bottom:1px solid var(--line)}
+  .icon-btn{width:40px;height:40px;border-radius:12px;background:var(--card);border:1px solid var(--line);
+    color:var(--text);font-size:15px;cursor:pointer;display:grid;place-items:center;transition:.2s;flex-shrink:0}
+  .icon-btn:hover,.icon-btn:focus-visible{border-color:var(--accent);color:var(--accent);outline:none}
+  .top-center{font-size:13px;color:var(--muted);letter-spacing:.5px;text-align:center}
+  .top-center b{color:var(--accent);font-weight:600}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;border:1px solid var(--line);
+    border-radius:999px;padding:4px 10px;color:var(--muted);margin-left:6px}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+  .status-dot.ok{background:#4ade80;box-shadow:0 0 8px rgba(74,222,128,.6)}
+  .status-dot.loading{background:var(--accent);animation:pulse 1s infinite}
+  .status-dot.error{background:#f87171}
+  @keyframes pulse{50%{opacity:.3}}
+
+  .messages{
+    flex:1;
+    overflow-y:auto;
+    padding:16px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .messages::-webkit-scrollbar{width:5px}.messages::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .msg-wrap{max-width:720px;margin:0 auto 24px;animation:fadeUp .4s ease}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .msg-label{font-size:11px;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted);margin-bottom:8px}
+  .msg.ai .msg-label{color:var(--accent)}
+  .bubble{font-size:15px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word}
+  .msg.user .bubble{color:var(--muted);font-size:14.5px}
+  .score-badge{display:inline-block;font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:6px;padding:2px 8px;margin-top:8px}
+  .cursor-blink{display:inline-block;width:7px;height:15px;background:var(--accent);
+    vertical-align:text-bottom;margin-left:2px;animation:blink .8s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  .typing-line{color:var(--accent);font-size:14px}
+  .typing-line::after{content:'...';animation:dots 1.2s steps(3) infinite}
+  @keyframes dots{0%{content:''}33%{content:'.'}66%{content:'..'}100%{content:'...'}}
+  
+  .msg-actions{display:flex;gap:8px;margin-top:12px}
+  .ma-btn{background:none;border:1px solid var(--line);color:var(--muted);font-size:11.5px;padding:6px 12px;
+    border-radius:8px;cursor:pointer;font-family:inherit;transition:.15s}
+  .ma-btn:hover,.ma-btn:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+  
+  .hero{max-width:720px;margin:4vh auto 0;animation:fadeUp .5s ease;padding:0 8px}
+  .hero h1{font-size:clamp(22px,5vw,36px);font-weight:800;letter-spacing:-0.5px;line-height:1.2}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .hero p{color:var(--muted);margin-top:10px;font-size:14px}
+  .chips{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+  .chip{background:none;border:1px solid var(--line);color:var(--muted);padding:8px 14px;border-radius:999px;
+    font-size:12.5px;cursor:pointer;font-family:inherit;transition:.2s;text-align:left}
+  .chip:hover,.chip:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+  
+  .input-area{
+    padding:10px 16px;
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    flex-shrink:0;
+  }
+  .input-box{
+    max-width:720px;
+    margin:0 auto;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:6px 8px 6px 14px;
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+    transition:border-color .2s;
+  }
+  .input-box:focus-within{border-color:var(--accent)}
+  
+  textarea{
+    flex:1;
+    background:none;
+    border:none;
+    outline:none;
+    resize:none;
+    color:var(--text);
+    font-size:16px; /* 16px empêche le zoom automatique sur iOS */
+    font-family:inherit;
+    padding:8px 0;
+    min-height:24px;
+    max-height:120px;
+    line-height:1.4;
+  }
+  textarea::placeholder{color:var(--muted)}
+  
+  .send-btn{
+    width:36px;
+    height:36px;
+    border-radius:10px;
+    flex-shrink:0;
+    background:var(--accent);
+    border:none;
+    color:#0a0a0f;
+    font-size:14px;
+    cursor:pointer;
+    transition:.2s;
+    display:grid;
+    place-items:center;
+    margin-bottom:2px;
+  }
+  .send-btn:hover:not(:disabled){opacity:.85}
+  .send-btn:disabled{opacity:.3;cursor:not-allowed}
+  .hint{text-align:center;font-size:10.5px;color:var(--muted);margin-top:6px;opacity:.6}
+  
+  .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(15px);background:var(--bg);
+    border:1px solid var(--accent);color:var(--accent);padding:8px 16px;border-radius:999px;font-size:12.5px;
+    z-index:70;opacity:0;pointer-events:none;transition:.3s;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+  #filePick{display:none}
+
+  @media(max-width:640px){
+    .topbar{padding:10px 12px}
+    .messages{padding:12px}
+    .input-area{padding:8px 12px 12px}
+    .top-center span.status-pill{display:none} /* Cache la pilule texte sur petit écran */
+  }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="toggleHistory(false)"></div>
+
+<aside class="history-panel" id="historyPanel" role="dialog" aria-label="Historique des conversations">
+  <div class="hp-head">
+    <h2>Historique</h2>
+    <div class="hp-actions">
+      <button class="close-btn" onclick="clearHistory()" title="Tout effacer" aria-label="Tout effacer">&#128465;</button>
+      <button class="close-btn" onclick="toggleHistory(false)" aria-label="Fermer">&#10005;</button>
+    </div>
+  </div>
+  <div class="hp-list" id="hpList"></div>
+</aside>
+
+<main class="main">
+  <header class="topbar">
+    <button class="icon-btn" onclick="toggleHistory(true)" aria-label="Ouvrir l'historique">&#9776;</button>
+    <div class="top-center">
+      <b>Aura mini</b>
+      <span class="status-pill"><span class="status-dot loading" id="statusDot"></span><span id="statusText">Chargement&hellip;</span></span>
+    </div>
+    <button class="icon-btn" onclick="newChat()" aria-label="Nouvelle conversation">&#10133;</button>
+  </header>
+
+  <div class="messages" id="messages"></div>
+
+  <div class="input-area">
+    <form class="input-box" onsubmit="send(event)">
+      <textarea id="input" rows="1" placeholder="Message Aura..."
+        aria-label="Votre question" onkeydown="onKey(event)" oninput="autoGrow()"></textarea>
+      <button class="send-btn" type="submit" id="sendBtn" aria-label="Envoyer">&#9650;</button>
+    </form>
+    <div class="hint">Aura•mini by Sanogo™ ©2026 All rights reserved</div>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="filePick" accept=".txt,.json" multiple>
+
+<script>
+const $ = id => document.getElementById(id);
+const messages = $('messages'), input = $('input'), toast = $('toast');
+
+let lastQuery = '', isGenerating = false, activeChatIndex = -1;
+
+// Ajustement dynamique de la hauteur pour les mobiles (évite le problème du clavier)
+function setAppHeight() {
+  const doc = document.documentElement;
+  doc.style.setProperty('--app-height', `${window.innerHeight}px`);
+}
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', setAppHeight);
+setAppHeight();
+
+const nearBottom = () => messages.scrollHeight - messages.scrollTop - messages.clientHeight < 150;
+const scrollToBottom = () => { messages.scrollTop = messages.scrollHeight; };
+
+const HERO_HTML = `
+  <div class="hero" id="hero">
+    <h1><em>Par où commencer ?</em></h1>
+    <p>Aura mini est une IA et peut faire des erreurs.</p>
+    <div class="chips" id="chips"></div>
+  </div>`;
+
+/* ================================================================
+   1. PARSER ROBUSTE POUR FICHIER DE DONNÉES
+   ================================================================ */
+function parseDataFile(raw) {
+  let cleaned = raw.trim();
+  
+  if (cleaned.startsWith('[') || cleaned.startsWith('data =')) {
+    let jsonStr = cleaned.replace(/^\s*(?:const|let|var)\s+data\s*=\s*/i, '').trim();
+    if (jsonStr.endsWith(';')) jsonStr = jsonStr.slice(0, -1);
+    jsonStr = jsonStr.replace(/\(\s*(["'].*?["'])\s*,\s*(["'].*?["'])\s*\)/g, '[$1, $2]');
+    
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => ({
+          q: String(Array.isArray(item) ? item[0] : item.q || '').trim(),
+          a: String(Array.isArray(item) ? item[1] : item.a || '').trim()
+        })).filter(p => p.q && p.a);
+      }
+    } catch (e) {}
+  }
+
+  const pairs = [];
+  const regex = /(?:\(|\[)\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*,\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*(?:\)|\])/g;
+  let match;
+  
+  while ((match = regex.exec(cleaned)) !== null) {
+    const q = (match[1] !== undefined ? match[1] : match[2]).replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    const a = (match[3] !== undefined ? match[3] : match[4]).replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    if (q.trim() && a.trim()) {
+      pairs.push({ q: q.trim(), a: a.trim() });
+    }
+  }
+
+  if (!pairs.length) {
+    throw new Error('Format non reconnu. Assurez-vous que le fichier contient [("Question", "Réponse")]');
+  }
+
+  return pairs;
+}
+
+/* ================================================================
+   2. MOTEUR TF-IDF + HYBRIDE OPTIMISÉ
+   ================================================================ */
+const STOP_FR = new Set(`
+le la les l un une des de du d au aux a et ou mais donc or ni car ne pas plus jamais rien
+je tu il elle on nous vous ils elles moi toi lui leur eux meme memes
+ce cet cette ces c celui celle ceux cela ca
+mon ma mes ton ta tes son sa ses notre nos votre vos
+est sont suis es etre etants etait etaient ete serai sera seront suis sommes etes
+ai as avons avez ont avoir eu aura auront
+que qui quoi dont ou quel quelle quels quelles
+comment pourquoi quand combien
+pour par avec sans sur sous dans en dedans entre vers chez
+y se sa sois soit soyons soyez
+tout tous toute toutes autre autres memes meme
+aussi si tres peut peuvent peux puis puisqu puisque parce
+alors donc ainsi cependant toutefois neanmoins
+voici voila suis suis mon mien tien sien
+bien encore deja souvent toujours parfois apres avant depuis
+`.split(/\s+/));
+
+function stripAccents(t) {
+  return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function stem(w) {
+  if (w.length <= 3) return w;
+  if (w.endsWith('aux')) return w.slice(0, -3) + 'al';
+  for (const suf of ['ements', 'ement', 'ations', 'ation', 'eurs', 'euses', 'euse',
+                     'ions', 'tion', 'ives', 'ifs', 'ant', 'ent',
+                     'ies', 'es', 's', 'e', 'er', 'ez', 'ee', 'ees']) {
+    if (w.endsWith(suf) && w.length - suf.length >= 3) return w.slice(0, -suf.length);
+  }
+  return w;
+}
+
+function tokenize(text, { useStem = true } = {}) {
+  const words = stripAccents(text.toLowerCase())
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 1 && !STOP_FR.has(t) && !/^\d+$/.test(t));
+  return useStem ? words.map(stem) : words;
+}
+
+function bigrams(tokens) {
+  const out = [];
+  for (let i = 0; i < tokens.length - 1; i++) out.push(tokens[i] + '_' + tokens[i + 1]);
+  return out;
+}
+
+let engine = null;
+
+function buildEngine(pairs) {
+  const qTokens = pairs.map(p => tokenize(p.q));
+  const qBi = qTokens.map(bigrams);
+  const N = pairs.length;
+
+  const df = new Map();
+  qTokens.forEach((tokens, i) => {
+    new Set([...tokens, ...qBi[i]]).forEach(t => df.set(t, (df.get(t) || 0) + 1));
+  });
+
+  const idf = new Map();
+  df.forEach((d, term) => idf.set(term, Math.log((N + 1) / (d + 1)) + 1));
+
+  const tfidf = qTokens.map((tokens, i) => {
+    const tf = new Map();
+    [...tokens, ...qBi[i]].forEach(t => tf.set(t, (tf.get(t) || 0) + 1));
+    const vec = new Map();
+    tf.forEach((f, t) => vec.set(t, (1 + Math.log(f)) * (idf.get(t) || 0)));
+    let norm = 0;
+    vec.forEach(v => norm += v * v);
+    norm = Math.sqrt(norm) || 1;
+    vec.forEach((v, t) => vec.set(t, v / norm));
+    return vec;
+  });
+
+  engine = { docs: pairs, idf, tfidf, qTokens };
+}
+
+function search(query, topK = 3) {
+  if (!engine) return [];
+  
+  const rawQuery = stripAccents(query.toLowerCase()).trim();
+  const tokens = tokenize(query);
+  if (!tokens.length) return [];
+  
+  const bi = bigrams(tokens);
+  const qTokensSet = new Set(tokens);
+
+  const tf = new Map();
+  [...tokens, ...bi].forEach(t => tf.set(t, (tf.get(t) || 0) + 1));
+  const qvec = new Map();
+  tf.forEach((f, t) => qvec.set(t, (1 + Math.log(f)) * (engine.idf.get(t) || 1)));
+  let norm = 0;
+  qvec.forEach(v => norm += v * v);
+  norm = Math.sqrt(norm) || 1;
+  qvec.forEach((v, t) => qvec.set(t, v / norm));
+
+  const scored = engine.docs.map((doc, idx) => {
+    const rawDocQ = stripAccents(doc.q.toLowerCase()).trim();
+    
+    if (rawDocQ === rawQuery) return { idx, score: 1.0, doc };
+    if (rawDocQ.includes(rawQuery) || rawQuery.includes(rawDocQ)) {
+      return { idx, score: 0.88, doc };
+    }
+
+    const docVec = engine.tfidf[idx];
+    let cos = 0;
+    qvec.forEach((v, t) => { const w = docVec.get(t); if (w) cos += v * w; });
+
+    const docTokens = new Set(engine.qTokens[idx]);
+    let intersection = 0;
+    qTokensSet.forEach(t => { if (docTokens.has(t)) intersection++; });
+    const jaccard = intersection / Math.max(1, (qTokensSet.size + docTokens.size - intersection));
+
+    const docBi = new Set(bigrams(engine.qTokens[idx]));
+    let biHits = 0;
+    bi.forEach(b => { if (docBi.has(b)) biHits++; });
+    const biScore = bi.length ? biHits / bi.length : 0;
+
+    const finalScore = (cos * 0.45) + (jaccard * 0.35) + (biScore * 0.20);
+
+    return { idx, score: finalScore, doc };
+  });
+
+  return scored.filter(r => r.score > 0.12)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, topK);
+}
+
+/* ================================================================
+   3. CHARGEMENT (Multi-fichiers data1.txt et data2.txt)
+   ================================================================ */
+function setStatus(state, text) {
+  $('statusDot').className = 'status-dot ' + state;
+  $('statusText').textContent = text;
+}
+
+async function fetchFile(filename) {
+  const res = await fetch(filename);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.text();
+}
+
+async function loadData() {
+  setStatus('loading', 'Chargement...');
+  try {
+    const [raw1, raw2] = await Promise.all([
+      fetchFile('data1.txt'),
+      fetchFile('data2.txt')
+    ]);
+    
+    const pairs1 = parseDataFile(raw1);
+    const pairs2 = parseDataFile(raw2);
+    const combinedPairs = [...pairs1, ...pairs2];
+    
+    buildEngine(combinedPairs);
+    setStatus('ok', 'Prêt');
+    renderChips();
+    showToast(`Base initialisée (${combinedPairs.length} entrées)`);
+    
+  } catch (e) {
+    setStatus('error', 'Erreur chargement');
+    showToast('Sélectionnez data1.txt et data2.txt');
+    $('filePick').click();
+  }
+}
+
+$('filePick').addEventListener('change', async e => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  
+  setStatus('loading', 'Lecture...');
+  try {
+    let combinedPairs = [];
+    
+    for (const file of files) {
+      const content = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error(`Erreur lecture ${file.name}`));
+        reader.readAsText(file, 'UTF-8');
+      });
+      
+      const parsed = parseDataFile(content);
+      combinedPairs = combinedPairs.concat(parsed);
+    }
+
+    if (!combinedPairs.length) {
+      throw new Error('Aucune donnée valide trouvée.');
+    }
+
+    buildEngine(combinedPairs);
+    setStatus('ok', 'Prêt');
+    renderChips();
+    showToast(`Base initialisée (${combinedPairs.length} entrées)`);
+  } catch (err) {
+    setStatus('error', 'Erreur de parsing');
+    showToast('Erreur : ' + err.message);
+  }
+});
+
+function renderChips() {
+  const chips = $('chips');
+  if (!chips || !engine) return;
+  chips.innerHTML = '';
+  engine.docs.slice(0, 4).forEach(d => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = d.q.length > 35 ? d.q.slice(0, 35) + '...' : d.q;
+    b.onclick = () => { input.value = d.q; autoGrow(); send(); };
+    chips.appendChild(b);
+  });
+}
+
+/* ================================================================
+   4. HISTORIQUE
+   ================================================================ */
+let storageOk = true;
+try { localStorage.setItem('aura-t', '1'); localStorage.removeItem('aura-t'); } catch { storageOk = false; }
+
+let history;
+try { history = JSON.parse(localStorage.getItem('aura-history') || 'null'); } catch { history = null; }
+if (!Array.isArray(history)) history = [];
+
+function saveHistory() {
+  if (storageOk) localStorage.setItem('aura-history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = $('hpList');
+  list.innerHTML = '<div class="hp-group">Conversations</div>';
+  if (!history.length) {
+    list.innerHTML += '<div class="hp-empty">Aucune conversation</div>';
+    return;
+  }
+  history.forEach((item, index) => {
+    const el = document.createElement('div');
+    el.className = 'hp-item' + (index === activeChatIndex ? ' active' : '');
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.textContent = item.title;
+    const del = document.createElement('button');
+    del.className = 'hp-del'; del.innerHTML = '&#10005;';
+    del.setAttribute('aria-label', 'Supprimer');
+    del.onclick = e => {
+      e.stopPropagation();
+      history.splice(index, 1);
+      if (activeChatIndex === index) activeChatIndex = -1;
+      saveHistory(); showToast('Supprimée');
+    };
+    const open = () => loadChat(index);
+    el.onclick = open;
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+    el.appendChild(del);
+    list.appendChild(el);
+  });
+}
+
+function loadChat(index) {
+  const item = history[index];
+  if (!item?.messages?.length) return;
+  activeChatIndex = index;
+  toggleHistory(false);
+  messages.innerHTML = '';
+  item.messages.forEach(m => addMsg(m.text, m.who, m.score));
+  scrollToBottom();
+  showToast('Chat chargé');
+}
+
+function clearHistory() {
+  if (!history.length) return;
+  if (confirm("Effacer tout l'historique ?")) {
+    history = []; activeChatIndex = -1; saveHistory(); showToast('Historique effacé');
+  }
+}
+
+function toggleHistory(open) {
+  $('historyPanel').classList.toggle('open', open);
+  $('overlay').classList.toggle('show', open);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleHistory(false); });
+
+/* ================================================================
+   5. HELPERS
+   ================================================================ */
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(showToast.t);
+  showToast.t = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+function escapeHtml(v) {
+  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ================================================================
+   6. MESSAGES
+   ================================================================ */
+function addMsg(text, who, score = null) {
+  $('hero')?.remove();
+  const div = document.createElement('div');
+  div.className = `msg-wrap msg ${who}`;
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = who === 'ai' ? '◆ Aura' : 'Vous';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  div.append(label, bubble);
+  messages.appendChild(div);
+  bubble.innerHTML = escapeHtml(text) || '&nbsp;';
+  if (who === 'ai' && score !== null) {
+    const badge = document.createElement('div');
+    badge.className = 'score-badge';
+    badge.textContent = 'Pertinence : ' + (score * 100).toFixed(0) + '%';
+    div.appendChild(badge);
+  }
+  scrollToBottom();
+  return div;
+}
+
+function streamText(bubble, text, container, onComplete) {
+  let index = 0;
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor-blink';
+  bubble.textContent = '';
+  bubble.appendChild(cursor);
+
+  const timer = setInterval(() => {
+    const chunk = text.slice(index, index + 2);
+    if (chunk) {
+      cursor.insertAdjacentText('beforebegin', chunk);
+      index += chunk.length;
+    }
+    scrollToBottom();
+    if (index >= text.length) {
+      clearInterval(timer);
+      cursor.remove();
+      onComplete?.();
+
+      const actions = document.createElement('div');
+      actions.className = 'msg-actions';
+      const copy = document.createElement('button');
+      copy.className = 'ma-btn'; copy.textContent = 'Copier';
+      copy.onclick = () => navigator.clipboard.writeText(text)
+        .then(() => showToast('Copié !')).catch(() => showToast('Impossible de copier'));
+
+      const regen = document.createElement('button');
+      regen.className = 'ma-btn'; regen.textContent = 'Régénérer';
+      regen.onclick = () => {
+        if (isGenerating) return;
+        bubble.innerHTML = '<span class="typing-line"></span>';
+        setTimeout(() => {
+          const reply = formatAnswer(search(lastQuery), lastQuery);
+          streamText(bubble, reply.text, container, () => updateActiveChat(reply.text, 'ai', reply.score));
+        }, 700);
+      };
+      actions.append(copy, regen);
+      container.appendChild(actions);
+    }
+  }, 14);
+}
+
+function formatAnswer(results, query) {
+  if (!engine) {
+    return { text: "Chargement des données en cours... Veuillez patienter quelques secondes.", score: null };
+  }
+  if (!results.length) {
+    return { text: `Désolé, je n'ai pas trouvé de réponse pertinente pour "${query}". Pouvez-vous reformuler votre question avec d'autres mots ?`, score: null };
+  }
+  const best = results[0];
+  let text = best.doc.a;
+  if (results.length > 1 && results[1].score > 0.20) {
+    text += '\n\n────────────────\nAffinez votre requête \n\nSuggestions associées :\n\n' +
+      results.slice(1).map(r => '• ' + r.doc.q).join('\n\n');
+  }
+  return { text, score: best.score };
+}
+
+/* ================================================================
+   7. ENVOI ET GESTION DU CLAVIER
+   ================================================================ */
+function send(event) {
+  event?.preventDefault();
+  const text = input.value.trim();
+  if (!text || isGenerating) return;
+  isGenerating = true;
+  lastQuery = text;
+  addMsg(text, 'user');
+
+  input.value = '';
+  autoGrow();
+  $('sendBtn').disabled = true;
+
+  const typing = document.createElement('div');
+  typing.className = 'msg-wrap msg ai';
+  typing.innerHTML = '<div class="msg-label">◆ Aura</div><div class="typing-line"></div>';
+  messages.appendChild(typing);
+  scrollToBottom();
+
+  setTimeout(() => {
+    try {
+      typing.remove();
+      const reply = formatAnswer(search(text), text);
+      const msg = addMsg('', 'ai');
+      streamText(msg.querySelector('.bubble'), reply.text, msg,
+        () => updateActiveChat(reply.text, 'ai', reply.score));
+
+      if (activeChatIndex === -1 || !history[activeChatIndex]) {
+        history.unshift({ title: text.slice(0, 42), messages: [] });
+        activeChatIndex = 0;
+      }
+      updateActiveChat(text, 'user', null);
+    } catch (err) {
+      typing.remove();
+      addMsg('Erreur : ' + err.message, 'ai');
+    }
+    isGenerating = false;
+    $('sendBtn').disabled = false;
+  }, 300);
+}
+
+function updateActiveChat(text, who, score) {
+  const item = history[activeChatIndex];
+  if (!item) return;
+  item.messages.push({ text, who, score });
+  saveHistory();
+}
+
+function newChat() {
+  activeChatIndex = -1;
+  messages.innerHTML = HERO_HTML;
+  renderChips();
+  showToast('Nouvelle conversation');
+}
+
+function onKey(e) {
+  // Envoi avec Entrée uniquement sur Desktop (sur mobile la touche Entrée ajoute une ligne)
+  if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 768) { 
+    e.preventDefault(); 
+    send(e); 
+  }
+}
+
+function autoGrow() {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+}
+
+/* ===== INIT ===== */
+messages.innerHTML = HERO_HTML;
+renderHistory();
+autoGrow();
+loadData();
+</script>
+</body>
+</html>
